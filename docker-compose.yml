@@ -1,0 +1,63 @@
+services:
+  app:
+    build:
+      context: .
+      target: runner
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      ADMIN_PASSWORD: silas-admin
+      ADMIN_SECRET: replace-with-a-long-random-secret
+      DATABASE_URL: postgresql://blog:blog_password@db:5432/blog?schema=public
+      SITE_URL: http://localhost:3001
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://blog:blog_password@db:5432/blog?schema=public
+    restart: "no"
+
+  seed:
+    build:
+      context: .
+      target: migrator
+    command: ["node", "prisma/seed.mjs"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://blog:blog_password@db:5432/blog?schema=public
+    profiles:
+      - seed
+    restart: "no"
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: blog
+      POSTGRES_PASSWORD: blog_password
+      POSTGRES_DB: blog
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog -d blog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
