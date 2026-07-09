@@ -1,0 +1,40 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            mkdir -p backups
+            if docker compose ps db --status running >/dev/null 2>&1; then
+              sh ./ops/backup.sh || true
+              sh ./ops/backup-retention.sh || true
+            fi
+            git pull --ff-only
+            docker compose up -d --build
+            docker compose --profile ai run --rm ai-index || true
+            for i in $(seq 1 20); do
+              if curl -fsS http://localhost:3001/api/ready >/dev/null; then
+                break
+              fi
+              if [ "$i" = "20" ]; then
+                docker compose logs app
+                exit 1
+              fi
+              sleep 3
+            done
+            docker compose ps

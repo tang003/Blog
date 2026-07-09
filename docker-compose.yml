@@ -9,12 +9,32 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      ADMIN_PASSWORD: silas-admin
-      ADMIN_SECRET: replace-with-a-long-random-secret
-      DATABASE_URL: postgresql://blog:blog_password@db:5432/blog?schema=public
-      SITE_URL: http://localhost:3001
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-silas-admin}
+      ADMIN_USERS: ${ADMIN_USERS:-admin:silas-admin}
+      ADMIN_SECRET: ${ADMIN_SECRET:-replace-with-a-long-random-secret}
+      COMMENT_BLOCKLIST: ${COMMENT_BLOCKLIST:-}
+      COMMENT_MODERATION: ${COMMENT_MODERATION:-false}
+      COMMENT_WEBHOOK_URL: ${COMMENT_WEBHOOK_URL:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog_password}@db:5432/${POSTGRES_DB:-blog}?schema=public
+      SITE_URL: ${SITE_URL:-http://localhost:3001}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      UPLOAD_PUBLIC_BASE_URL: ${UPLOAD_PUBLIC_BASE_URL:-}
     ports:
       - "3001:3000"
+    volumes:
+      - uploads_data:/app/public/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/ready >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   migrate:
@@ -25,7 +45,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://blog:blog_password@db:5432/blog?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog_password}@db:5432/${POSTGRES_DB:-blog}?schema=public
     restart: "no"
 
   seed:
@@ -39,17 +59,33 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://blog:blog_password@db:5432/blog?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog_password}@db:5432/${POSTGRES_DB:-blog}?schema=public
     profiles:
       - seed
+    restart: "no"
+
+  ai-index:
+    build:
+      context: .
+      target: migrator
+    command: ["node", "ops/rebuild-ai-index.mjs"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog_password}@db:5432/${POSTGRES_DB:-blog}?schema=public
+    profiles:
+      - ai
     restart: "no"
 
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: blog
-      POSTGRES_PASSWORD: blog_password
-      POSTGRES_DB: blog
+      POSTGRES_USER: ${POSTGRES_USER:-blog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blog_password}
+      POSTGRES_DB: ${POSTGRES_DB:-blog}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U blog -d blog"]
       interval: 5s
@@ -59,5 +95,25 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - app
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    profiles:
+      - proxy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:

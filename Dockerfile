@@ -12,6 +12,7 @@ RUN npx prisma generate
 RUN npm run build
 
 FROM deps AS migrator
+COPY ops ./ops
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM base AS runner
@@ -19,12 +20,14 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
+RUN apk add --no-cache wget
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+RUN mkdir -p ./public/uploads && chown -R nextjs:nodejs ./public/uploads
 
 USER nextjs
 

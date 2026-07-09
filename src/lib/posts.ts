@@ -14,6 +14,7 @@ export function normalizePostInput(formData: FormData) {
   const requestedSlug = String(formData.get("slug") ?? "").trim();
   const excerpt = String(formData.get("excerpt") ?? "").trim();
   const content = String(formData.get("content") ?? "").trim();
+  const coverImage = String(formData.get("coverImage") ?? "").trim() || null;
   const tags = String(formData.get("tags") ?? "")
     .split(",")
     .map((tag) => tag.trim())
@@ -42,6 +43,7 @@ export function normalizePostInput(formData: FormData) {
     slug,
     excerpt,
     content,
+    coverImage,
     tags,
     published,
   };

@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { deletePostAction, updatePostAction } from "../../actions";
+import { DeletePostForm } from "@/components/delete-post-form";
 import { PostForm } from "@/components/post-form";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { deletePostAction, updatePostAction } from "../../actions";
 
 type EditPostPageProps = {
   params: Promise<{
@@ -24,6 +25,16 @@ export default async function EditPostPage({
 
   const post = await prisma.post.findUnique({
     where: { id },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      coverImage: true,
+      tags: true,
+      published: true,
+    },
   });
 
   if (!post) {
@@ -31,20 +42,17 @@ export default async function EditPostPage({
   }
 
   return (
-    <div className="mx-auto max-w-3xl py-12">
+    <div className="mx-auto max-w-4xl py-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium uppercase text-teal-700">Admin</p>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight">编辑文章</h1>
+          <p className="mt-3 font-mono text-sm text-zinc-500">/{post.slug}</p>
         </div>
-        <form action={deletePostAction.bind(null, post.id)}>
-          <button
-            className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50"
-            type="submit"
-          >
-            删除文章
-          </button>
-        </form>
+        <DeletePostForm
+          action={deletePostAction.bind(null, post.id)}
+          label="删除文章"
+        />
       </div>
 
       {saved ? (

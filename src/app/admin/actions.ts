@@ -6,19 +6,28 @@ import {
   clearAdminSession,
   requireAdmin,
   setAdminSession,
-  verifyAdminPassword,
+  verifyAdminCredentials,
 } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizePostInput } from "@/lib/posts";
+import { isLoginLocked, recordLoginAttempt } from "@/lib/security";
 
 export async function loginAction(formData: FormData) {
+  const username = String(formData.get("username") ?? "admin").trim() || "admin";
   const password = String(formData.get("password") ?? "");
+  const identifier = username.toLowerCase();
 
-  if (!verifyAdminPassword(password)) {
+  if (await isLoginLocked(identifier)) {
+    redirect("/admin/login?locked=1");
+  }
+
+  if (!verifyAdminCredentials(username, password)) {
+    await recordLoginAttempt(identifier, false);
     redirect("/admin/login?error=1");
   }
 
-  await setAdminSession();
+  await recordLoginAttempt(identifier, true);
+  await setAdminSession(username);
   redirect("/admin");
 }
 
@@ -97,4 +106,25 @@ export async function deletePostAction(id: string) {
   });
 
   redirect("/admin");
+}
+
+export async function deleteCommentAction(id: string) {
+  await requireAdmin();
+
+  await prisma.comment.delete({
+    where: { id },
+  });
+
+  redirect("/admin/comments");
+}
+
+export async function toggleCommentApprovalAction(id: string, approved: boolean) {
+  await requireAdmin();
+
+  await prisma.comment.update({
+    where: { id },
+    data: { approved: !approved },
+  });
+
+  redirect("/admin/comments");
 }
