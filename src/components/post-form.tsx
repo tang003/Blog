@@ -1,13 +1,28 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { MarkdownContent } from "@/components/markdown-content";
+
+const MDEditor = dynamic(() => import("@uiw/react-md-editor"), {
+  loading: () => (
+    <div className="min-h-96 rounded-md border border-zinc-300 bg-white p-4 text-sm text-zinc-500">
+      编辑器加载中...
+    </div>
+  ),
+  ssr: false,
+});
 
 type UploadedImage = {
   name: string;
   previewUrl: string;
   url: string;
+};
+
+type TextSelection = {
+  end: number;
+  start: number;
 };
 
 type PostFormProps = {
@@ -51,13 +66,18 @@ function SubmitButton({ label }: { label: string }) {
 }
 
 export function PostForm({ action, backHref, post, submitLabel }: PostFormProps) {
-  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const selectionRef = useRef<TextSelection>({
+    end: post?.content.length ?? 0,
+    start: post?.content.length ?? 0,
+  });
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
   const [coverImage, setCoverImage] = useState(post?.coverImage ?? "");
   const [tags, setTags] = useState(post?.tags.join(", ") ?? "");
   const [content, setContent] = useState(post?.content ?? "");
+  const [uploadError, setUploadError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [slugTouched, setSlugTouched] = useState(Boolean(post?.slug));
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -79,17 +99,16 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
     }
   }
 
+  function updateSelection(event: React.SyntheticEvent<HTMLTextAreaElement>) {
+    selectionRef.current = {
+      end: event.currentTarget.selectionEnd,
+      start: event.currentTarget.selectionStart,
+    };
+  }
+
   function insertImageMarkdown(image: UploadedImage) {
     const markdown = `![${image.name.replace(/\.[^.]+$/, "")}](${image.url})`;
-    const textarea = contentRef.current;
-
-    if (!textarea) {
-      setContent((current) => `${current}${current ? "\n\n" : ""}${markdown}`);
-      return;
-    }
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
+    const { end, start } = selectionRef.current;
     const before = content.slice(0, start);
     const after = content.slice(end);
     const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
@@ -98,13 +117,17 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
     const nextCursor = before.length + prefix.length + markdown.length;
 
     setContent(next);
+    selectionRef.current = { end: nextCursor, start: nextCursor };
+
     window.requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(nextCursor, nextCursor);
+      const textarea = editorRef.current?.querySelector("textarea");
+      textarea?.focus();
+      textarea?.setSelectionRange(nextCursor, nextCursor);
     });
   }
 
   async function uploadImage(file: File) {
+    setUploadError("");
     setUploading(true);
 
     try {
@@ -119,7 +142,8 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed.");
+        const result = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(result?.error ?? "图片上传失败，请稍后重试。");
       }
 
       const result = (await response.json()) as { url: string };
@@ -132,6 +156,8 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
       setUploadedImages((current) => [image, ...current]);
       setCoverImage((current) => current || result.url);
       insertImageMarkdown(image);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "图片上传失败，请稍后重试。");
     } finally {
       setUploading(false);
     }
@@ -198,14 +224,15 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
           />
         </label>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-zinc-700">正文 Markdown</span>
-          <div className="flex flex-wrap items-center gap-3">
+        <section className="grid gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-medium text-zinc-700">正文 Markdown</span>
             <label className="inline-flex cursor-pointer items-center rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500">
               {uploading ? "上传中..." : "上传图片"}
               <input
                 accept="image/png,image/jpeg,image/webp,image/gif"
                 className="sr-only"
+                data-testid="post-image-upload"
                 disabled={uploading}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -217,9 +244,28 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
                 type="file"
               />
             </label>
-            <span className="text-sm text-zinc-500">
-              上传后会插入到当前光标位置，并在下方显示缩略图。
-            </span>
+          </div>
+          {uploadError ? (
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {uploadError}
+            </p>
+          ) : null}
+          <input name="content" type="hidden" value={content} />
+          <div data-color-mode="light" ref={editorRef}>
+            <MDEditor
+              height={520}
+              onChange={(value = "") => setContent(value)}
+              preview="live"
+              textareaProps={{
+                onClick: updateSelection,
+                onKeyUp: updateSelection,
+                onSelect: updateSelection,
+                placeholder: "写 Markdown，右侧会实时预览。可用工具栏插入标题、列表、链接、代码块等。",
+                required: true,
+              }}
+              value={content}
+              visibleDragbar
+            />
           </div>
           {uploadedImages.length > 0 ? (
             <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:grid-cols-2">
@@ -229,11 +275,7 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
                   key={`${image.url}-${image.name}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt=""
-                    className="size-18 rounded object-cover"
-                    src={image.previewUrl}
-                  />
+                  <img alt="" className="size-18 rounded object-cover" src={image.previewUrl} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-zinc-700">{image.name}</p>
                     <p className="mt-1 truncate font-mono text-xs text-zinc-500">{image.url}</p>
@@ -249,15 +291,7 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
               ))}
             </div>
           ) : null}
-          <textarea
-            className="min-h-96 rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm leading-7 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            name="content"
-            onChange={(event) => setContent(event.target.value)}
-            ref={contentRef}
-            required
-            value={content}
-          />
-        </label>
+        </section>
 
         <label className="flex items-center gap-3 text-sm text-zinc-700">
           <input
@@ -282,9 +316,9 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
 
       <section className="rounded-lg border border-zinc-200 bg-stone-50 p-5">
         <div className="mb-5 border-b border-zinc-200 pb-4">
-          <h2 className="text-lg font-semibold tracking-tight">实时预览</h2>
+          <h2 className="text-lg font-semibold tracking-tight">文章效果预览</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            这里会按前台文章样式渲染 Markdown。
+            这里会按前台文章样式渲染标题、摘要、标签和正文。
           </p>
         </div>
         <article>
