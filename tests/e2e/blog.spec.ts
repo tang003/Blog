@@ -49,9 +49,34 @@ test("admin entrypoint is hidden behind the private studio path", async ({ page,
   });
   expect(studioApi.status()).toBe(401);
 
-  await page.goto("/studio");
-  await expect(page).toHaveURL(/\/studio\/login/);
+  await page.goto("/tang");
+  await expect(page).toHaveURL(/\/tang\/login/);
   await expect(page.getByRole("heading", { name: "管理员登录" })).toBeVisible();
+});
+
+test("admin editor previews uploaded images", async ({ page }) => {
+  await page.goto("/tang/login");
+  await page.getByLabel("账号").fill("admin");
+  await page.getByLabel("密码").fill("silas-admin");
+  await page.getByRole("button", { name: "登录" }).click();
+  await expect(page).toHaveURL(/\/tang$/);
+
+  await page.goto("/tang/new");
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles({
+    name: "preview.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/atXq9kAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+
+  await expect(page.getByText("preview.png")).toBeVisible();
+  await expect(page.locator('textarea[name="content"]')).toHaveValue(
+    /!\[preview\]\(\/uploads\/.+\.png\)/,
+  );
+  await expect(page.locator('img[src^="/uploads/"]').first()).toBeVisible();
 });
 
 test("health endpoints are available", async ({ request }) => {

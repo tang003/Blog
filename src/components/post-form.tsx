@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { MarkdownContent } from "@/components/markdown-content";
+
+type UploadedImage = {
+  name: string;
+  previewUrl: string;
+  url: string;
+};
 
 type PostFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -45,6 +51,7 @@ function SubmitButton({ label }: { label: string }) {
 }
 
 export function PostForm({ action, backHref, post, submitLabel }: PostFormProps) {
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
@@ -53,6 +60,7 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
   const [content, setContent] = useState(post?.content ?? "");
   const [uploading, setUploading] = useState(false);
   const [slugTouched, setSlugTouched] = useState(Boolean(post?.slug));
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
 
   const previewTags = useMemo(
     () =>
@@ -69,6 +77,31 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
     if (!slugTouched) {
       setSlug(slugify(value));
     }
+  }
+
+  function insertImageMarkdown(image: UploadedImage) {
+    const markdown = `![${image.name.replace(/\.[^.]+$/, "")}](${image.url})`;
+    const textarea = contentRef.current;
+
+    if (!textarea) {
+      setContent((current) => `${current}${current ? "\n\n" : ""}${markdown}`);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = content.slice(0, start);
+    const after = content.slice(end);
+    const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
+    const suffix = after && !after.startsWith("\n") ? "\n\n" : "";
+    const next = `${before}${prefix}${markdown}${suffix}${after}`;
+    const nextCursor = before.length + prefix.length + markdown.length;
+
+    setContent(next);
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
   }
 
   async function uploadImage(file: File) {
@@ -90,8 +123,15 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
       }
 
       const result = (await response.json()) as { url: string };
+      const image = {
+        name: file.name,
+        previewUrl: URL.createObjectURL(file),
+        url: result.url,
+      };
+
+      setUploadedImages((current) => [image, ...current]);
       setCoverImage((current) => current || result.url);
-      setContent((current) => `${current}${current ? "\n\n" : ""}![图片](${result.url})`);
+      insertImageMarkdown(image);
     } finally {
       setUploading(false);
     }
@@ -178,13 +218,42 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
               />
             </label>
             <span className="text-sm text-zinc-500">
-              上传后会自动插入 Markdown 图片链接。
+              上传后会插入到当前光标位置，并在下方显示缩略图。
             </span>
           </div>
+          {uploadedImages.length > 0 ? (
+            <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:grid-cols-2">
+              {uploadedImages.map((image) => (
+                <div
+                  className="grid grid-cols-[72px_1fr] gap-3 rounded-md bg-white p-2 ring-1 ring-zinc-200"
+                  key={`${image.url}-${image.name}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt=""
+                    className="size-18 rounded object-cover"
+                    src={image.previewUrl}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-zinc-700">{image.name}</p>
+                    <p className="mt-1 truncate font-mono text-xs text-zinc-500">{image.url}</p>
+                    <button
+                      className="mt-2 rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:border-zinc-500"
+                      onClick={() => insertImageMarkdown(image)}
+                      type="button"
+                    >
+                      插入到正文
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <textarea
             className="min-h-96 rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm leading-7 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             name="content"
             onChange={(event) => setContent(event.target.value)}
+            ref={contentRef}
             required
             value={content}
           />

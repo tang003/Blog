@@ -16,7 +16,7 @@ function matches(pathname: string, base: string) {
 }
 
 export function middleware(request: NextRequest) {
-  const adminPath = normalizePath(process.env.ADMIN_PATH, "/studio");
+  const adminPath = normalizePath(process.env.ADMIN_PATH, "/tang");
   const adminApiPath = normalizePath(process.env.ADMIN_API_PATH, "/studio-api");
   const { pathname } = request.nextUrl;
 

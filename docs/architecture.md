@@ -65,7 +65,7 @@ Schema changes must go through Prisma migrations in `prisma/migrations`.
 
 ### Admin Login
 
-1. `ADMIN_PATH` defaults to `/studio`. Middleware rewrites it to the internal admin routes.
+1. `ADMIN_PATH` defaults to `/tang`. Middleware rewrites it to the internal admin routes.
 2. Direct `/admin` requests return 404, so the editing entrypoint is not linked from the public site.
 3. Login page posts username/password to `loginAction`.
 4. `isLoginLocked` checks recent failed attempts.

@@ -1,4 +1,4 @@
-const DEFAULT_ADMIN_PATH = "/studio";
+const DEFAULT_ADMIN_PATH = "/tang";
 const DEFAULT_ADMIN_API_PATH = "/studio-api";
 
 function normalizePath(value: string | undefined, fallback: string) {

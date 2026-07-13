@@ -100,7 +100,7 @@ http://localhost:3001/opengraph-image
 Private studio:
 
 ```txt
-http://localhost:3001/studio
+http://localhost:3001/tang
 ```
 
 ## Backup And Restore
@@ -127,8 +127,8 @@ sh ./ops/backup-retention.sh
 - `COMMENT_MODERATION=true` holds new comments for review.
 - `COMMENT_BLOCKLIST` marks comments containing listed words as pending review.
 - `COMMENT_WEBHOOK_URL` can receive a JSON notification when a new comment arrives.
-- `ADMIN_PATH` and `ADMIN_API_PATH` hide the editing studio behind private paths. The default dashboard is `/studio`, while direct `/admin` and `/api/admin` requests return 404.
-- `/studio/stats` shows total views, today's views, popular posts, and recent daily views.
+- `ADMIN_PATH` and `ADMIN_API_PATH` hide the editing studio behind private paths. The default dashboard is `/tang`, while direct `/admin` and `/api/admin` requests return 404.
+- `/tang/stats` shows total views, today's views, popular posts, and recent daily views.
 - `/ask` searches the AI document index. Run `npm run ai:index` after publishing or updating posts.
 - `STORAGE_DRIVER=local` is the current upload mode. `UPLOAD_PUBLIC_BASE_URL` can point uploaded images at a CDN.
 - `STORAGE_DRIVER=s3` enables S3/R2-compatible uploads with `S3_ENDPOINT`, `S3_BUCKET`, credentials, and `UPLOAD_PUBLIC_BASE_URL`.
