@@ -8,6 +8,7 @@ import {
   setAdminSession,
   verifyAdminCredentials,
 } from "@/lib/auth";
+import { getAdminPath } from "@/lib/admin-path";
 import { prisma } from "@/lib/prisma";
 import { normalizePostInput } from "@/lib/posts";
 import { isLoginLocked, recordLoginAttempt } from "@/lib/security";
@@ -18,17 +19,17 @@ export async function loginAction(formData: FormData) {
   const identifier = username.toLowerCase();
 
   if (await isLoginLocked(identifier)) {
-    redirect("/admin/login?locked=1");
+    redirect(`${getAdminPath("/login")}?locked=1`);
   }
 
   if (!verifyAdminCredentials(username, password)) {
     await recordLoginAttempt(identifier, false);
-    redirect("/admin/login?error=1");
+    redirect(`${getAdminPath("/login")}?error=1`);
   }
 
   await recordLoginAttempt(identifier, true);
   await setAdminSession(username);
-  redirect("/admin");
+  redirect(getAdminPath());
 }
 
 export async function logoutAction() {
@@ -50,13 +51,13 @@ export async function createPostAction(formData: FormData) {
       select: { id: true },
     });
 
-    redirect(`/admin/${post.id}/edit`);
+    redirect(getAdminPath(`/${post.id}/edit`));
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      redirect("/admin/new?error=slug");
+      redirect(`${getAdminPath("/new")}?error=slug`);
     }
 
     throw error;
@@ -72,7 +73,7 @@ export async function updatePostAction(id: string, formData: FormData) {
   });
 
   if (!existing) {
-    redirect("/admin");
+    redirect(getAdminPath());
   }
 
   try {
@@ -85,13 +86,13 @@ export async function updatePostAction(id: string, formData: FormData) {
       },
     });
 
-    redirect(`/admin/${id}/edit?saved=1`);
+    redirect(`${getAdminPath(`/${id}/edit`)}?saved=1`);
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      redirect(`/admin/${id}/edit?error=slug`);
+      redirect(`${getAdminPath(`/${id}/edit`)}?error=slug`);
     }
 
     throw error;
@@ -105,7 +106,7 @@ export async function deletePostAction(id: string) {
     where: { id },
   });
 
-  redirect("/admin");
+  redirect(getAdminPath());
 }
 
 export async function deleteCommentAction(id: string) {
@@ -115,7 +116,7 @@ export async function deleteCommentAction(id: string) {
     where: { id },
   });
 
-  redirect("/admin/comments");
+  redirect(getAdminPath("/comments"));
 }
 
 export async function toggleCommentApprovalAction(id: string, approved: boolean) {
@@ -126,5 +127,5 @@ export async function toggleCommentApprovalAction(id: string, approved: boolean)
     data: { approved: !approved },
   });
 
-  redirect("/admin/comments");
+  redirect(getAdminPath("/comments"));
 }

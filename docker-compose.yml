@@ -12,6 +12,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-silas-admin}
       ADMIN_USERS: ${ADMIN_USERS:-admin:silas-admin}
       ADMIN_SECRET: ${ADMIN_SECRET:-replace-with-a-long-random-secret}
+      ADMIN_PATH: ${ADMIN_PATH:-/studio}
+      ADMIN_API_PATH: ${ADMIN_API_PATH:-/studio-api}
+      NEXT_PUBLIC_ADMIN_API_PATH: ${NEXT_PUBLIC_ADMIN_API_PATH:-/studio-api}
       COMMENT_BLOCKLIST: ${COMMENT_BLOCKLIST:-}
       COMMENT_MODERATION: ${COMMENT_MODERATION:-false}
       COMMENT_WEBHOOK_URL: ${COMMENT_WEBHOOK_URL:-}

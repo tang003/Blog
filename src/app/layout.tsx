@@ -64,9 +64,6 @@ export default function RootLayout({
               <Link className="transition hover:text-zinc-950" href="/about">
                 关于
               </Link>
-              <Link className="transition hover:text-zinc-950" href="/admin">
-                后台
-              </Link>
               <a className="transition hover:text-zinc-950" href="https://github.com">
                 GitHub
               </a>

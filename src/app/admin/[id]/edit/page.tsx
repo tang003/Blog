@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { DeletePostForm } from "@/components/delete-post-form";
 import { PostForm } from "@/components/post-form";
+import { getAdminPath } from "@/lib/admin-path";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { deletePostAction, updatePostAction } from "../../actions";
@@ -45,14 +46,11 @@ export default async function EditPostPage({
     <div className="mx-auto max-w-4xl py-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium uppercase text-teal-700">Admin</p>
+          <p className="text-sm font-medium uppercase text-teal-700">Studio</p>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight">编辑文章</h1>
           <p className="mt-3 font-mono text-sm text-zinc-500">/{post.slug}</p>
         </div>
-        <DeletePostForm
-          action={deletePostAction.bind(null, post.id)}
-          label="删除文章"
-        />
+        <DeletePostForm action={deletePostAction.bind(null, post.id)} label="删除文章" />
       </div>
 
       {saved ? (
@@ -69,6 +67,7 @@ export default async function EditPostPage({
       <div className="mt-8 rounded-lg border border-zinc-200 bg-white p-6">
         <PostForm
           action={updatePostAction.bind(null, post.id)}
+          backHref={getAdminPath()}
           post={post}
           submitLabel="保存修改"
         />

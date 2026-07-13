@@ -22,10 +22,10 @@ flowchart LR
 | Area | Responsibility | Main Files |
 | --- | --- | --- |
 | Public blog | Home, post detail, search, archive, tags, about, RSS, sitemap | `src/app/*`, `src/components/post-card.tsx` |
-| Admin | Login, post CRUD, comment management, stats | `src/app/admin/*`, `src/app/admin/actions.ts` |
+| Admin | Private studio login, post CRUD, comment management, stats | `middleware.ts`, `src/app/admin/*`, `src/app/admin/actions.ts` |
 | Content rendering | Markdown rendering, TOC, code highlighting/copy | `src/components/markdown-content.tsx`, `src/lib/markdown.ts` |
 | Comments | Validation, moderation, rate limits, notifications | `src/app/blog/actions.ts`, `src/lib/comments.ts`, `src/lib/security.ts`, `src/lib/notifications.ts` |
-| Uploads | Image validation, local upload, S3/R2-compatible upload | `src/app/api/admin/uploads/route.ts`, `src/lib/uploads.ts`, `src/lib/storage.ts` |
+| Uploads | Image validation, local upload, S3/R2-compatible upload | `middleware.ts`, `src/app/api/admin/uploads/route.ts`, `src/lib/uploads.ts`, `src/lib/storage.ts` |
 | Search | PostgreSQL full-text search with fallback query behavior | `src/lib/search.ts`, `src/app/search/page.tsx` |
 | Analytics | Page views, daily post views, admin stats | `src/lib/analytics.ts`, `src/app/admin/stats/page.tsx` |
 | AI retrieval | Article chunk index and `/ask` retrieval | `src/lib/ai-search.ts`, `ops/rebuild-ai-index.mjs`, `src/app/ask/page.tsx` |
@@ -65,23 +65,28 @@ Schema changes must go through Prisma migrations in `prisma/migrations`.
 
 ### Admin Login
 
-1. Login page posts username/password to `loginAction`.
-2. `isLoginLocked` checks recent failed attempts.
-3. `verifyAdminCredentials` checks `ADMIN_USERS`.
-4. Success writes an HTTP-only signed session cookie.
-5. Failure records `LoginAttempt` and redirects with an error.
+1. `ADMIN_PATH` defaults to `/studio`. Middleware rewrites it to the internal admin routes.
+2. Direct `/admin` requests return 404, so the editing entrypoint is not linked from the public site.
+3. Login page posts username/password to `loginAction`.
+4. `isLoginLocked` checks recent failed attempts.
+5. `verifyAdminCredentials` checks `ADMIN_USERS`.
+6. Success writes an HTTP-only signed session cookie.
+7. Failure records `LoginAttempt` and redirects with an error.
 
 ### Image Upload
 
-1. Admin-only upload route checks authentication.
-2. File MIME type, size, and magic bytes are validated.
-3. If `STORAGE_DRIVER=local`, file is written to `public/uploads`.
-4. If `STORAGE_DRIVER=s3`, file is uploaded with S3-compatible `PutObject`.
-5. Route returns a public URL.
+1. `ADMIN_API_PATH` defaults to `/studio-api`. Middleware rewrites it to the internal admin API route.
+2. Admin-only upload route checks authentication.
+3. File MIME type, size, and magic bytes are validated.
+4. If `STORAGE_DRIVER=local`, file is written to `public/uploads`.
+5. If `STORAGE_DRIVER=s3`, file is uploaded with S3-compatible `PutObject`.
+6. Route returns a public URL.
 
 ## Security Posture
 
 - Admin routes require a signed HTTP-only cookie.
+- The public navigation does not expose an admin link, and direct `/admin` and `/api/admin` requests return 404.
+- Hidden admin paths reduce casual discovery but do not replace credentials, session signing, or rate limits.
 - Production public deployments should change `ADMIN_USERS`, `ADMIN_SECRET`, and database password.
 - Security headers are configured in `next.config.ts`.
 - Admin routes include `X-Robots-Tag: noindex, nofollow`.
@@ -94,4 +99,3 @@ Schema changes must go through Prisma migrations in `prisma/migrations`.
 - Prefer Prisma migrations over ad hoc database changes.
 - Keep Docker jobs explicit: app, migrate, seed, ai-index.
 - Treat `/ask` as retrieval-first today; full RAG should extend the index rather than replace it.
-

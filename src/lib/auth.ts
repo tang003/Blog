@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getAdminPath } from "@/lib/admin-path";
 
 const COOKIE_NAME = "silas_blog_admin";
 const DEV_PASSWORD = "silas-admin";
@@ -95,7 +96,7 @@ export async function isAdminAuthenticated() {
 
 export async function requireAdmin() {
   if (!(await isAdminAuthenticated())) {
-    redirect("/admin/login");
+    redirect(getAdminPath("/login"));
   }
 }
 

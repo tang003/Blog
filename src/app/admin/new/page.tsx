@@ -1,4 +1,5 @@
 import { PostForm } from "@/components/post-form";
+import { getAdminPath } from "@/lib/admin-path";
 import { requireAdmin } from "@/lib/auth";
 import { createPostAction } from "../actions";
 
@@ -14,7 +15,7 @@ export default async function NewPostPage({ searchParams }: NewPostPageProps) {
 
   return (
     <div className="mx-auto max-w-4xl py-12">
-      <p className="text-sm font-medium uppercase text-teal-700">Admin</p>
+      <p className="text-sm font-medium uppercase text-teal-700">Studio</p>
       <h1 className="mt-2 text-4xl font-semibold tracking-tight">新建文章</h1>
       <p className="mt-3 text-zinc-600">
         输入标题后会自动生成 slug，图片上传会自动插入 Markdown，预览区会实时渲染正文。
@@ -27,7 +28,7 @@ export default async function NewPostPage({ searchParams }: NewPostPageProps) {
       ) : null}
 
       <div className="mt-8 rounded-lg border border-zinc-200 bg-white p-6">
-        <PostForm action={createPostAction} submitLabel="创建文章" />
+        <PostForm action={createPostAction} backHref={getAdminPath()} submitLabel="创建文章" />
       </div>
     </div>
   );

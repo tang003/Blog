@@ -6,6 +6,7 @@ import { MarkdownContent } from "@/components/markdown-content";
 
 type PostFormProps = {
   action: (formData: FormData) => void | Promise<void>;
+  backHref: string;
   post?: {
     title: string;
     slug: string;
@@ -43,7 +44,7 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function PostForm({ action, post, submitLabel }: PostFormProps) {
+export function PostForm({ action, backHref, post, submitLabel }: PostFormProps) {
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
@@ -76,8 +77,10 @@ export function PostForm({ action, post, submitLabel }: PostFormProps) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const adminApiBase =
+        process.env.NEXT_PUBLIC_ADMIN_API_PATH?.replace(/\/+$/, "") || "/studio-api";
 
-      const response = await fetch("/api/admin/uploads", {
+      const response = await fetch(`${adminApiBase}/uploads`, {
         method: "POST",
         body: formData,
       });
@@ -201,7 +204,7 @@ export function PostForm({ action, post, submitLabel }: PostFormProps) {
           <SubmitButton label={submitLabel} />
           <a
             className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
-            href="/admin"
+            href={backHref}
           >
             返回
           </a>
