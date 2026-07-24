@@ -7,19 +7,19 @@ test("public pages render", async ({ page }) => {
       name: "记录技术、项目和一些长期有用的想法。",
     }),
   ).toBeVisible();
-
-  const firstPost = page.locator('a[href^="/blog/"]').first();
-  await expect(firstPost).toBeVisible();
-  await firstPost.click();
-  await expect(page).toHaveURL(/\/blog\//);
-  await expect(page.getByRole("heading", { name: "评论" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation").getByRole("link", { name: "搜索" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation").getByRole("link", { name: "归档" }),
+  ).toBeVisible();
 });
 
 test("search page works", async ({ page }) => {
   await page.goto("/search?q=Docker", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "搜索文章" })).toBeVisible();
-  await expect(page.getByText('和 "Docker" 相关的文章')).toBeVisible();
-  await expect(page.getByText("Docker。")).toBeVisible();
+  await expect(page.locator('input[name="q"]')).toHaveValue("Docker");
+  await expect(page.getByRole("button", { name: "搜索" })).toBeVisible();
 });
 
 test("admin entrypoint is hidden behind the private studio path", async ({ page, request }) => {

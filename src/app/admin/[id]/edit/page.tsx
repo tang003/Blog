@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminShell } from "@/components/admin-shell";
 import { DeletePostForm } from "@/components/delete-post-form";
 import { PostForm } from "@/components/post-form";
 import { getAdminPath } from "@/lib/admin-path";
@@ -43,28 +45,38 @@ export default async function EditPostPage({
   }
 
   return (
-    <div className="mx-auto max-w-4xl py-12">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase text-teal-700">Studio</p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight">编辑文章</h1>
-          <p className="mt-3 font-mono text-sm text-zinc-500">/{post.slug}</p>
-        </div>
-        <DeletePostForm action={deletePostAction.bind(null, post.id)} label="删除文章" />
-      </div>
-
+    <AdminShell
+      actions={
+        <>
+          {post.published ? (
+            <Link
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+              href={`/blog/${post.slug}`}
+            >
+              前台查看
+            </Link>
+          ) : null}
+          <DeletePostForm
+            action={deletePostAction.bind(null, post.id)}
+            label="删除文章"
+          />
+        </>
+      }
+      description={`当前地址：/${post.slug}`}
+      title="编辑文章"
+    >
       {saved ? (
-        <p className="mt-6 rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-700">
+        <p className="rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-700">
           已保存。
         </p>
       ) : null}
       {error === "slug" ? (
-        <p className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           这个 slug 已经存在，请换一个。
         </p>
       ) : null}
 
-      <div className="mt-8 rounded-lg border border-zinc-200 bg-white p-6">
+      <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
         <PostForm
           action={updatePostAction.bind(null, post.id)}
           backHref={getAdminPath()}
@@ -72,6 +84,6 @@ export default async function EditPostPage({
           submitLabel="保存修改"
         />
       </div>
-    </div>
+    </AdminShell>
   );
 }
