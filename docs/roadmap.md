@@ -58,8 +58,12 @@ Goal: improve content discovery as article count grows.
 
 Goal: make repeated writing and maintenance smoother.
 
+- Redesign the editor as a private writing studio. See `docs/editor-redesign.md`.
 - Autosave drafts.
 - Preview tokens for unpublished posts.
+- Media library with drag-and-drop and paste upload.
+- Code block language picker, link dialog, table insert, and callout blocks.
+- Revision history and restore.
 - Bulk comment moderation.
 - Bulk post actions.
 - Admin audit log.
@@ -82,4 +86,3 @@ Goal: make failures diagnosable.
 - Add abstractions only when a second implementation exists or is clearly imminent.
 - Keep all production-changing operations scriptable and documented.
 - Tests should cover logic that is easy to break and hard to notice manually.
-
