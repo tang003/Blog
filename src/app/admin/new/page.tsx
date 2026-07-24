@@ -26,7 +26,12 @@ export default async function NewPostPage({ searchParams }: NewPostPageProps) {
       ) : null}
 
       <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
-        <PostForm action={createPostAction} backHref={getAdminPath()} submitLabel="创建文章" />
+        <PostForm
+          action={createPostAction}
+          backHref={getAdminPath()}
+          draftKey="new-post"
+          submitLabel="创建文章"
+        />
       </div>
     </AdminShell>
   );

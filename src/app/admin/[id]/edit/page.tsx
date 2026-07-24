@@ -80,6 +80,7 @@ export default async function EditPostPage({
         <PostForm
           action={updatePostAction.bind(null, post.id)}
           backHref={getAdminPath()}
+          draftKey={`post-${post.id}`}
           post={post}
           submitLabel="保存修改"
         />

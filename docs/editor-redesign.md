@@ -214,6 +214,21 @@ The editor engine should be wrapped behind `MarkdownEditor` so future replacemen
 8. Add revisions.
 9. Evaluate replacing `@uiw/react-md-editor` with `MDXEditor`.
 
+## Implemented In First Pass
+
+The first implementation pass keeps the current Markdown editor engine and improves the authoring workflow around it:
+
+- Local browser autosave for new posts and existing post edits.
+- Draft recovery prompt when a local draft is detected.
+- Unsaved-change warning before closing or refreshing the page.
+- `Ctrl+S` / `Cmd+S` submits the current form.
+- Sticky save bar with dirty state and local draft timestamp.
+- Quick insert actions for links, code blocks, tables, and callout blocks.
+- Image upload by button, drag-and-drop, and paste.
+- Uploaded image list with thumbnail and re-insert action.
+
+The next implementation pass should move autosave from local storage to a server-side autosave API if drafts need to move across browsers or devices.
+
 ## Acceptance Criteria
 
 - A new post can be written without knowing Markdown syntax for common operations.

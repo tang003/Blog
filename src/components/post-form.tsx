@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { MarkdownContent } from "@/components/markdown-content";
 
@@ -25,10 +25,22 @@ type TextSelection = {
   start: number;
 };
 
+type DraftPayload = {
+  content: string;
+  coverImage: string;
+  excerpt: string;
+  savedAt: string;
+  slug: string;
+  tags: string;
+  title: string;
+};
+
 type PostFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   backHref: string;
+  draftKey?: string;
   post?: {
+    id?: string;
     title: string;
     slug: string;
     excerpt: string;
@@ -51,6 +63,14 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
+function formatDraftTime(value: string) {
+  return new Date(value).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
 
@@ -65,18 +85,28 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function PostForm({ action, backHref, post, submitLabel }: PostFormProps) {
+export function PostForm({
+  action,
+  backHref,
+  draftKey = "new",
+  post,
+  submitLabel,
+}: PostFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<TextSelection>({
     end: post?.content.length ?? 0,
     start: post?.content.length ?? 0,
   });
+  const storageKey = `silas-blog:draft:${draftKey}`;
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
   const [coverImage, setCoverImage] = useState(post?.coverImage ?? "");
   const [tags, setTags] = useState(post?.tags.join(", ") ?? "");
   const [content, setContent] = useState(post?.content ?? "");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [lastDraftSave, setLastDraftSave] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [slugTouched, setSlugTouched] = useState(Boolean(post?.slug));
@@ -90,6 +120,104 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
         .filter(Boolean),
     [tags],
   );
+
+  const isDirty =
+    title !== (post?.title ?? "") ||
+    slug !== (post?.slug ?? "") ||
+    excerpt !== (post?.excerpt ?? "") ||
+    coverImage !== (post?.coverImage ?? "") ||
+    tags !== (post?.tags.join(", ") ?? "") ||
+    content !== (post?.content ?? "");
+
+  useEffect(() => {
+    const rawDraft = window.localStorage.getItem(storageKey);
+
+    if (!rawDraft) {
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(rawDraft) as Partial<DraftPayload>;
+      const hasDifferentContent =
+        draft.title !== title ||
+        draft.slug !== slug ||
+        draft.excerpt !== excerpt ||
+        draft.coverImage !== coverImage ||
+        draft.tags !== tags ||
+        draft.content !== content;
+
+      if (hasDifferentContent && window.confirm("检测到本地自动保存的草稿，要恢复吗？")) {
+        window.setTimeout(() => {
+          setTitle(draft.title ?? "");
+          setSlug(draft.slug ?? "");
+          setExcerpt(draft.excerpt ?? "");
+          setCoverImage(draft.coverImage ?? "");
+          setTags(draft.tags ?? "");
+          setContent(draft.content ?? "");
+          setDraftRestored(true);
+        }, 0);
+      }
+
+      if (draft.savedAt) {
+        window.setTimeout(() => setLastDraftSave(draft.savedAt ?? ""), 0);
+      }
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+    // Run once on mount. The initial state is intentionally captured here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+
+    const savedAt = new Date().toISOString();
+    const draft: DraftPayload = {
+      content,
+      coverImage,
+      excerpt,
+      savedAt,
+      slug,
+      tags,
+      title,
+    };
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(storageKey, JSON.stringify(draft));
+      setLastDraftSave(savedAt);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [content, coverImage, excerpt, isDirty, slug, storageKey, tags, title]);
+
+  useEffect(() => {
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      if (!isDirty) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    function submitOnShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") {
+        return;
+      }
+
+      event.preventDefault();
+      formRef.current?.requestSubmit();
+    }
+
+    window.addEventListener("keydown", submitOnShortcut);
+    return () => window.removeEventListener("keydown", submitOnShortcut);
+  }, []);
 
   function handleTitleChange(value: string) {
     setTitle(value);
@@ -106,24 +234,53 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
     };
   }
 
-  function insertImageMarkdown(image: UploadedImage) {
-    const markdown = `![${image.name.replace(/\.[^.]+$/, "")}](${image.url})`;
+  function focusEditor(cursor: number) {
+    window.requestAnimationFrame(() => {
+      const textarea = editorRef.current?.querySelector("textarea");
+      textarea?.focus();
+      textarea?.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  function insertMarkdown(markdown: string, options: { block?: boolean } = {}) {
     const { end, start } = selectionRef.current;
     const before = content.slice(0, start);
     const after = content.slice(end);
-    const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
-    const suffix = after && !after.startsWith("\n") ? "\n\n" : "";
+    const prefix = options.block && before && !before.endsWith("\n") ? "\n\n" : "";
+    const suffix = options.block && after && !after.startsWith("\n") ? "\n\n" : "";
     const next = `${before}${prefix}${markdown}${suffix}${after}`;
     const nextCursor = before.length + prefix.length + markdown.length;
 
     setContent(next);
     selectionRef.current = { end: nextCursor, start: nextCursor };
+    focusEditor(nextCursor);
+  }
 
-    window.requestAnimationFrame(() => {
-      const textarea = editorRef.current?.querySelector("textarea");
-      textarea?.focus();
-      textarea?.setSelectionRange(nextCursor, nextCursor);
-    });
+  function insertLink() {
+    const text = window.prompt("链接文字", "链接文字");
+    if (!text) return;
+
+    const url = window.prompt("链接地址", "https://");
+    if (!url) return;
+
+    insertMarkdown(`[${text}](${url})`);
+  }
+
+  function insertCodeBlock() {
+    const language = window.prompt("代码语言，例如 js、ts、bash", "ts") ?? "";
+    insertMarkdown(`\`\`\`${language.trim()}\n// 在这里写代码\n\`\`\``, { block: true });
+  }
+
+  function insertTable() {
+    insertMarkdown("| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |", { block: true });
+  }
+
+  function insertCallout() {
+    insertMarkdown("> [!NOTE]\n> 在这里写提示内容。", { block: true });
+  }
+
+  function insertImageMarkdown(image: UploadedImage) {
+    insertMarkdown(`![${image.name.replace(/\.[^.]+$/, "")}](${image.url})`, { block: true });
   }
 
   async function uploadImage(file: File) {
@@ -163,8 +320,50 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
     }
   }
 
+  async function uploadImages(files: FileList | File[]) {
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith("image/")) {
+        await uploadImage(file);
+      }
+    }
+  }
+
+  function clearLocalDraft() {
+    window.localStorage.removeItem(storageKey);
+    setLastDraftSave("");
+    setDraftRestored(false);
+  }
+
   return (
-    <form action={action} className="grid gap-8">
+    <form action={action} className="grid gap-8" ref={formRef}>
+      <div className="sticky top-0 z-10 -mx-6 border-b border-zinc-200 bg-white/95 px-6 py-3 backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-zinc-500">
+            {isDirty ? "有未保存修改" : "内容已保存"}
+            {lastDraftSave ? ` / 本地草稿 ${formatDraftTime(lastDraftSave)}` : null}
+            {draftRestored ? " / 已恢复草稿" : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {lastDraftSave ? (
+              <button
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+                onClick={clearLocalDraft}
+                type="button"
+              >
+                清除本地草稿
+              </button>
+            ) : null}
+            <SubmitButton label={submitLabel} />
+            <a
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+              href={backHref}
+            >
+              返回
+            </a>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-6">
         <label className="grid gap-2">
           <span className="text-sm font-medium text-zinc-700">标题</span>
@@ -177,30 +376,32 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
           />
         </label>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-zinc-700">Slug</span>
-          <input
-            className="rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            name="slug"
-            onChange={(event) => {
-              setSlugTouched(true);
-              setSlug(slugify(event.target.value));
-            }}
-            placeholder="my-first-post"
-            value={slug}
-          />
-        </label>
+        <div className="grid gap-6 md:grid-cols-2">
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-zinc-700">Slug</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              name="slug"
+              onChange={(event) => {
+                setSlugTouched(true);
+                setSlug(slugify(event.target.value));
+              }}
+              placeholder="my-first-post"
+              value={slug}
+            />
+          </label>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-zinc-700">标签</span>
-          <input
-            className="rounded-md border border-zinc-300 bg-white px-3 py-2 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            name="tags"
-            onChange={(event) => setTags(event.target.value)}
-            placeholder="Next.js, Docker, Prisma"
-            value={tags}
-          />
-        </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-zinc-700">标签</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              name="tags"
+              onChange={(event) => setTags(event.target.value)}
+              placeholder="Next.js, Docker, Prisma"
+              value={tags}
+            />
+          </label>
+        </div>
 
         <label className="grid gap-2">
           <span className="text-sm font-medium text-zinc-700">封面图 URL</span>
@@ -224,26 +425,40 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
           />
         </label>
 
-        <section className="grid gap-2">
+        <section className="grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm font-medium text-zinc-700">正文 Markdown</span>
-            <label className="inline-flex cursor-pointer items-center rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500">
-              {uploading ? "上传中..." : "上传图片"}
-              <input
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="sr-only"
-                data-testid="post-image-upload"
-                disabled={uploading}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    void uploadImage(file);
-                  }
-                  event.currentTarget.value = "";
-                }}
-                type="file"
-              />
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertLink} type="button">
+                插入链接
+              </button>
+              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertCodeBlock} type="button">
+                代码块
+              </button>
+              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertTable} type="button">
+                表格
+              </button>
+              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertCallout} type="button">
+                提示块
+              </button>
+              <label className="inline-flex cursor-pointer items-center rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500">
+                {uploading ? "上传中..." : "上传图片"}
+                <input
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="sr-only"
+                  data-testid="post-image-upload"
+                  disabled={uploading}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      void uploadImage(file);
+                    }
+                    event.currentTarget.value = "";
+                  }}
+                  type="file"
+                />
+              </label>
+            </div>
           </div>
           {uploadError ? (
             <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -251,22 +466,43 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
             </p>
           ) : null}
           <input name="content" type="hidden" value={content} />
-          <div data-color-mode="light" ref={editorRef}>
+          <div
+            className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-2"
+            data-color-mode="light"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void uploadImages(event.dataTransfer.files);
+            }}
+            onPaste={(event) => {
+              const images = Array.from(event.clipboardData.files).filter((file) =>
+                file.type.startsWith("image/"),
+              );
+              if (images.length > 0) {
+                event.preventDefault();
+                void uploadImages(images);
+              }
+            }}
+            ref={editorRef}
+          >
             <MDEditor
-              height={520}
+              height={560}
               onChange={(value = "") => setContent(value)}
               preview="live"
               textareaProps={{
                 onClick: updateSelection,
                 onKeyUp: updateSelection,
                 onSelect: updateSelection,
-                placeholder: "写 Markdown，右侧会实时预览。可用工具栏插入标题、列表、链接、代码块等。",
+                placeholder: "写 Markdown，右侧会实时预览。可以拖拽或粘贴图片，也可以用上方按钮插入链接、代码块、表格和提示块。",
                 required: true,
               }}
               value={content}
               visibleDragbar
             />
           </div>
+          <p className="text-sm text-zinc-500">
+            支持拖拽图片、粘贴截图、Ctrl+S 保存。本地草稿会自动保存到当前浏览器。
+          </p>
           {uploadedImages.length > 0 ? (
             <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:grid-cols-2">
               {uploadedImages.map((image) => (
@@ -302,16 +538,6 @@ export function PostForm({ action, backHref, post, submitLabel }: PostFormProps)
           />
           发布文章
         </label>
-
-        <div className="flex items-center gap-3">
-          <SubmitButton label={submitLabel} />
-          <a
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
-            href={backHref}
-          >
-            返回
-          </a>
-        </div>
       </div>
 
       <section className="rounded-lg border border-zinc-200 bg-stone-50 p-5">

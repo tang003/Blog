@@ -78,6 +78,21 @@ test("admin editor previews uploaded images", async ({ page }) => {
   await expect(page.locator('img[src^="/uploads/"]').first()).toBeVisible();
 });
 
+test("admin editor offers writing workflow helpers", async ({ page }) => {
+  await page.goto("/tang/login", { waitUntil: "domcontentloaded" });
+  await page.getByLabel("账号").fill("admin");
+  await page.getByLabel("密码").fill("silas-admin");
+  await page.getByRole("button", { name: "登录" }).click();
+  await expect(page).toHaveURL(/\/tang$/);
+
+  await page.goto("/tang/new", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText("支持拖拽图片、粘贴截图、Ctrl+S 保存")).toBeVisible();
+  await expect(page.getByRole("button", { name: "插入链接" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "代码块" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "表格" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "提示块" })).toBeVisible();
+});
+
 test("health endpoints are available", async ({ request }) => {
   await expect((await request.get("/api/health")).ok()).toBe(true);
   await expect((await request.get("/api/ready")).ok()).toBe(true);
