@@ -38,6 +38,8 @@ The editor page should feel like this:
 
 ## Recommended Editor Direction
 
+For the implementation-level plan inspired by open source CMS/editor projects, see `docs/post-studio-open-source-spec.md`.
+
 ### Short Term
 
 Keep Markdown as the source format.
