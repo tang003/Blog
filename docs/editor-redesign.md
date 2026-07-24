@@ -51,7 +51,7 @@ Reasons:
 - Code blocks, links, headings, images, and tables are natural in Markdown.
 - It avoids committing too early to a complex rich-text JSON format.
 
-Use the current `@uiw/react-md-editor` only as a bridge, not the final ceiling. It is acceptable for the current phase, but the target should be a custom authoring surface around Markdown.
+Use `MDXEditor` as the current editor engine and keep it wrapped behind the local `MarkdownEditor` component. This keeps the authoring experience Markdown-first while avoiding a hard dependency on one package across the whole form.
 
 ### Medium Term
 
@@ -64,7 +64,7 @@ Evaluate one of these editor engines:
 | `TipTap` | Rich text CMS editor | Excellent UX, but content is usually JSON/HTML unless carefully converted. |
 | `Lexical` | Custom content platform | Powerful, but more engineering work. |
 
-Recommended next step: evaluate `MDXEditor` first because the project should stay Markdown-first.
+Current decision: use `MDXEditor` first because the project should stay Markdown-first.
 
 ## Editor Information Architecture
 
@@ -214,11 +214,11 @@ The editor engine should be wrapped behind `MarkdownEditor` so future replacemen
 6. Add autosave API and UI status.
 7. Add preview token for unpublished posts.
 8. Add revisions.
-9. Evaluate replacing `@uiw/react-md-editor` with `MDXEditor`.
+9. Replace the first-pass editor engine with `MDXEditor`.
 
 ## Implemented In First Pass
 
-The first implementation pass keeps the current Markdown editor engine and improves the authoring workflow around it:
+The first implementation pass improves the authoring workflow and now uses `MDXEditor` as the writing surface:
 
 - Local browser autosave for new posts and existing post edits.
 - Draft recovery prompt when a local draft is detected.
@@ -228,6 +228,7 @@ The first implementation pass keeps the current Markdown editor engine and impro
 - Quick insert actions for links, code blocks, tables, and callout blocks.
 - Image upload by button, drag-and-drop, and paste.
 - Uploaded image list with thumbnail and re-insert action.
+- Toolbar support for headings, bold/italic/underline, lists, links, images, tables, and code blocks.
 
 The next implementation pass should move autosave from local storage to a server-side autosave API if drafts need to move across browsers or devices.
 

@@ -1,28 +1,14 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { MarkdownContent } from "@/components/markdown-content";
-
-const MDEditor = dynamic(() => import("@uiw/react-md-editor"), {
-  loading: () => (
-    <div className="min-h-96 rounded-md border border-zinc-300 bg-white p-4 text-sm text-zinc-500">
-      编辑器加载中...
-    </div>
-  ),
-  ssr: false,
-});
+import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-editor";
 
 type UploadedImage = {
   name: string;
   previewUrl: string;
   url: string;
-};
-
-type TextSelection = {
-  end: number;
-  start: number;
 };
 
 type DraftPayload = {
@@ -93,11 +79,7 @@ export function PostForm({
   submitLabel,
 }: PostFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const selectionRef = useRef<TextSelection>({
-    end: post?.content.length ?? 0,
-    start: post?.content.length ?? 0,
-  });
+  const editorRef = useRef<MarkdownEditorHandle>(null);
   const storageKey = `silas-blog:draft:${draftKey}`;
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
@@ -227,33 +209,18 @@ export function PostForm({
     }
   }
 
-  function updateSelection(event: React.SyntheticEvent<HTMLTextAreaElement>) {
-    selectionRef.current = {
-      end: event.currentTarget.selectionEnd,
-      start: event.currentTarget.selectionStart,
-    };
-  }
-
-  function focusEditor(cursor: number) {
-    window.requestAnimationFrame(() => {
-      const textarea = editorRef.current?.querySelector("textarea");
-      textarea?.focus();
-      textarea?.setSelectionRange(cursor, cursor);
-    });
-  }
-
   function insertMarkdown(markdown: string, options: { block?: boolean } = {}) {
-    const { end, start } = selectionRef.current;
-    const before = content.slice(0, start);
-    const after = content.slice(end);
-    const prefix = options.block && before && !before.endsWith("\n") ? "\n\n" : "";
-    const suffix = options.block && after && !after.startsWith("\n") ? "\n\n" : "";
-    const next = `${before}${prefix}${markdown}${suffix}${after}`;
-    const nextCursor = before.length + prefix.length + markdown.length;
+    const text = options.block ? `\n\n${markdown}\n\n` : markdown;
+    const next = `${content}${text}`;
+
+    if (editorRef.current) {
+      setContent(next);
+      editorRef.current.setMarkdown(next);
+      editorRef.current.focus();
+      return;
+    }
 
     setContent(next);
-    selectionRef.current = { end: nextCursor, start: nextCursor };
-    focusEditor(nextCursor);
   }
 
   function insertLink() {
@@ -277,6 +244,19 @@ export function PostForm({
 
   function insertCallout() {
     insertMarkdown("> [!NOTE]\n> 在这里写提示内容。", { block: true });
+  }
+
+  function rememberUploadedImage(file: File, url: string) {
+    const image = {
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      url,
+    };
+
+    setUploadedImages((current) => [image, ...current]);
+    setCoverImage((current) => current || url);
+
+    return image;
   }
 
   function insertImageMarkdown(image: UploadedImage) {
@@ -304,17 +284,11 @@ export function PostForm({
       }
 
       const result = (await response.json()) as { url: string };
-      const image = {
-        name: file.name,
-        previewUrl: URL.createObjectURL(file),
-        url: result.url,
-      };
-
-      setUploadedImages((current) => [image, ...current]);
-      setCoverImage((current) => current || result.url);
-      insertImageMarkdown(image);
+      return rememberUploadedImage(file, result.url);
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "图片上传失败，请稍后重试。");
+      const message = error instanceof Error ? error.message : "图片上传失败，请稍后重试。";
+      setUploadError(message);
+      throw new Error(message);
     } finally {
       setUploading(false);
     }
@@ -323,7 +297,8 @@ export function PostForm({
   async function uploadImages(files: FileList | File[]) {
     for (const file of Array.from(files)) {
       if (file.type.startsWith("image/")) {
-        await uploadImage(file);
+        const image = await uploadImage(file);
+        insertImageMarkdown(image);
       }
     }
   }
@@ -427,18 +402,34 @@ export function PostForm({
 
         <section className="grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm font-medium text-zinc-700">正文 Markdown</span>
+            <span className="text-sm font-medium text-zinc-700">正文</span>
             <div className="flex flex-wrap gap-2">
-              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertLink} type="button">
+              <button
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+                onClick={insertLink}
+                type="button"
+              >
                 插入链接
               </button>
-              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertCodeBlock} type="button">
+              <button
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+                onClick={insertCodeBlock}
+                type="button"
+              >
                 代码块
               </button>
-              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertTable} type="button">
+              <button
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+                onClick={insertTable}
+                type="button"
+              >
                 表格
               </button>
-              <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500" onClick={insertCallout} type="button">
+              <button
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500"
+                onClick={insertCallout}
+                type="button"
+              >
                 提示块
               </button>
               <label className="inline-flex cursor-pointer items-center rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-500">
@@ -451,7 +442,7 @@ export function PostForm({
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) {
-                      void uploadImage(file);
+                      void uploadImage(file).then(insertImageMarkdown).catch(() => undefined);
                     }
                     event.currentTarget.value = "";
                   }}
@@ -467,12 +458,11 @@ export function PostForm({
           ) : null}
           <input name="content" type="hidden" value={content} />
           <div
-            className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-2"
-            data-color-mode="light"
+            className="rounded-lg border border-zinc-300 bg-white p-2"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
-              void uploadImages(event.dataTransfer.files);
+              void uploadImages(event.dataTransfer.files).catch(() => undefined);
             }}
             onPaste={(event) => {
               const images = Array.from(event.clipboardData.files).filter((file) =>
@@ -480,28 +470,22 @@ export function PostForm({
               );
               if (images.length > 0) {
                 event.preventDefault();
-                void uploadImages(images);
+                void uploadImages(images).catch(() => undefined);
               }
             }}
-            ref={editorRef}
           >
-            <MDEditor
-              height={560}
-              onChange={(value = "") => setContent(value)}
-              preview="live"
-              textareaProps={{
-                onClick: updateSelection,
-                onKeyUp: updateSelection,
-                onSelect: updateSelection,
-                placeholder: "写 Markdown，右侧会实时预览。可以拖拽或粘贴图片，也可以用上方按钮插入链接、代码块、表格和提示块。",
-                required: true,
+            <MarkdownEditor
+              onChange={setContent}
+              onImageUpload={async (file) => {
+                const image = await uploadImage(file);
+                return image.url;
               }}
+              ref={editorRef}
               value={content}
-              visibleDragbar
             />
           </div>
           <p className="text-sm text-zinc-500">
-            支持拖拽图片、粘贴截图、Ctrl+S 保存。本地草稿会自动保存到当前浏览器。
+            支持工具栏排版、链接、表格、代码块、拖拽图片、粘贴截图和 Ctrl+S 保存。本地草稿会自动保存到当前浏览器。
           </p>
           {uploadedImages.length > 0 ? (
             <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:grid-cols-2">
@@ -520,7 +504,7 @@ export function PostForm({
                       onClick={() => insertImageMarkdown(image)}
                       type="button"
                     >
-                      插入到正文
+                      再插入一次
                     </button>
                   </div>
                 </div>
@@ -544,7 +528,7 @@ export function PostForm({
         <div className="mb-5 border-b border-zinc-200 pb-4">
           <h2 className="text-lg font-semibold tracking-tight">文章效果预览</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            这里会按前台文章样式渲染标题、摘要、标签和正文。
+            这里会按前台文章样式渲染标题、摘要、标签和正文，方便发布前做最后检查。
           </p>
         </div>
         <article>
@@ -556,9 +540,7 @@ export function PostForm({
               src={coverImage}
             />
           ) : null}
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {title || "未命名文章"}
-          </h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{title || "未命名文章"}</h1>
           <p className="mt-4 text-lg leading-8 text-zinc-600">
             {excerpt || "摘要会显示在这里。"}
           </p>

@@ -426,11 +426,11 @@ Acceptance:
 
 - User can close browser and recover work after reopening.
 
-### Step 5: Editor Engine Evaluation
+### Step 5: Editor Engine Adoption
 
 Goal:
 
-- Decide whether to keep `@uiw/react-md-editor` or migrate to `MDXEditor`.
+- Use `MDXEditor` as the default private authoring editor while preserving Markdown as the stored content format.
 
 Evaluation criteria:
 
@@ -444,8 +444,9 @@ Evaluation criteria:
 
 Acceptance:
 
-- Decision record added to docs.
-- Prototype branch or isolated component validates the chosen editor.
+- `MDXEditor` is wrapped by `src/components/markdown-editor.tsx`.
+- The post form only talks to the wrapper instead of importing the editor package directly.
+- Existing Markdown content remains compatible with the public renderer.
 
 ### Step 6: Revision History
 

@@ -86,7 +86,7 @@ test("admin editor offers writing workflow helpers", async ({ page }) => {
   await expect(page).toHaveURL(/\/tang$/);
 
   await page.goto("/tang/new", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText("支持拖拽图片、粘贴截图、Ctrl+S 保存")).toBeVisible();
+  await expect(page.getByText("支持工具栏排版、链接、表格、代码块、拖拽图片")).toBeVisible();
   await expect(page.getByRole("button", { name: "插入链接" })).toBeVisible();
   await expect(page.getByRole("button", { name: "代码块" })).toBeVisible();
   await expect(page.getByRole("button", { name: "表格" })).toBeVisible();
